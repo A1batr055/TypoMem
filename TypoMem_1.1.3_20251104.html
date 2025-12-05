@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<title>TypoMem·默背</title>
+<style>
+  :root { --bg:#0f1115; --fg:#e8e8e8; --muted:#9aa3ad; --ok:#3ecf8e; --bad:#ff5c7c; --warn:#ffb020; --card:#171a21; --accent:#7aa2f7; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  header{padding:14px 16px;border-bottom:1px solid #222;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  header h1{margin:0;font-size:16px;font-weight:600;color:var(--accent)}
+  .container{max-width:1100px;margin:20px auto;padding:0 16px;display:grid;grid-template-columns:340px 1fr;gap:16px}
+  @media (max-width:960px){.container{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid #222;border-radius:12px;overflow:hidden}
+  .card header{border:0;padding:12px 14px;background:rgba(255,255,255,0.02)}
+  .card header h2{margin:0;font-size:14px;color:#cbd5e1;font-weight:600}
+  .card .body{padding:12px 14px;position:relative}
+  textarea,input,button,select{font:inherit}
+  textarea{width:100%;min-height:160px;background:#0c0f14;color:var(--fg);border:1px solid #2a2f3a;border-radius:10px;padding:10px;resize:vertical;transition:filter .2s,opacity .2s,height .2s}
+  textarea.hidden{height:0;opacity:.15;pointer-events:none;border-style:dashed}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row .grow{flex:1 1 auto}
+  button{background:#1f2430;border:1px solid #2a2f3a;color:#e8e8e8;border-radius:10px;padding:8px 12px;cursor:pointer}
+  button.primary{background:var(--accent);border-color:transparent;color:#0b1020}
+  button.ghost{background:transparent;border-color:#2a2f3a}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  label{color:var(--muted);font-size:13px;display:flex;gap:6px;align-items:center}
+  input[type="checkbox"]{width:16px;height:16px}
+  .stats{display:flex;gap:12px;flex-wrap:wrap}
+  .stat{background:#0c0f14;border:1px solid #2a2f3a;border-radius:10px;padding:8px 10px;min-width:90px}
+  .stat .k{color:var(--muted);font-size:12px}
+  .stat .v{font-size:18px;font-weight:700}
+  .progress{height:8px;background:#0c0f14;border:1px solid #2a2f3a;border-radius:999px;overflow:hidden}
+  .bar{height:100%;width:0;background:linear-gradient(90deg,var(--ok),#70e1f5)}
+  .display{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:18px;line-height:1.6;white-space:pre-wrap;word-break:break-word;padding:12px;border-radius:10px;background:#0c0f14;border:1px solid #2a2f3a;min-height:220px}
+  .ghostText{color:#435060}
+  .typed.ok{color:var(--ok)}
+  .typed.bad{background:rgba(255,92,124,.18);color:#ff9aae;outline:1px solid rgba(255,92,124,.35)}
+  .caret{display:inline-block;width:2px;background:var(--warn);animation:blink 1s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+  .mobilebar{position:sticky;bottom:0;display:flex;gap:8px;padding:10px;background:#0c0f14;border-top:1px solid #2a2f3a}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #2a2f3a;background:#0c0f14;color:#cbd5e1;font-size:12px}
+  .list{display:flex;flex-direction:column;gap:6px}
+  .list-item{display:flex;gap:8px;align-items:center;justify-content:space-between;background:#0c0f14;border:1px solid #2a2f3a;border-radius:8px;padding:6px 8px}
+  .list-item .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+  .tag{font-size:12px;color:#9aa3ad;margin-left:8px}
+  .veil{position:absolute;inset:10px;display:none;align-items:center;justify-content:center;background:rgba(12,15,20,.5);border:1px dashed #2a2f3a;border-radius:10px;color:#9aa3ad}
+  .veil.show{display:flex}
+  footer{margin:22px auto 30px;color:#9aa3ad;text-align:center}
+</style>
+</head>
+<body>
+<header>
+<h1>TypoMem·默背</h1>
+<div class="row">
+<span class="pill">离线可用</span>
+<button class="ghost" id="exportBtn">导出素材</button>
+<button class="ghost" id="importBtn">导入素材</button>
+<input accept=".txt,.json,text/plain,application/json" id="importFile" style="display:none" type="file"/>
+<a id="saveAnchor" style="display:none"></a>
+</div>
+</header>
+<div class="container">
+<section class="card">
+<header><h2>素材与设置 <span class="tag" id="currentTag"></span></h2></header>
+<div class="body">
+<div class="row" style="margin-bottom:6px">
+<input class="grow" id="titleInput" placeholder="标题（如《Unit 3 Para 1》）"/>
+<button id="saveMaterialBtn">保存素材</button>
+<button class="ghost" id="clearSourceBtn">清除原文</button>
+</div>
+<div style="position:relative">
+<textarea id="sourceText" placeholder="在这里粘贴或输入课文..."></textarea>
+<div class="veil" id="veil">原文已隐藏（暂停可查看）</div>
+</div>
+<div class="row" style="margin-top:8px">
+<label><input checked="" id="hideText" type="checkbox"/> 完全遮蔽原文</label>
+</div>
+<div class="row" style="margin-top:8px">
+<label><input checked="" id="ignoreSpace" type="checkbox"/> 忽略空格与换行</label>
+<label><input checked="" id="ignorePunct" type="checkbox"/> 忽略标点</label>
+<label><input checked="" id="caseInsensitive" type="checkbox"/> 大小写不敏感</label>
+</div>
+<div class="row" style="margin-top:8px">
+<button class="primary" id="startBtn">开始</button>
+<button class="ghost" disabled="" id="pauseBtn">暂停</button>
+<button class="ghost" disabled="" id="restartBtn">重来</button>
+</div>
+<div class="body" style="padding:0;margin-top:10px">
+<div style="margin-bottom:6px;color:#9aa3ad;font-size:13px">已保存素材</div>
+<div class="list" id="materialList"></div>
+</div>
+</div>
+</section>
+<section class="card">
+<header><h2>练习区</h2></header>
+<div class="body">
+<div class="stats" style="margin-bottom:10px">
+<div class="stat"><div class="k">进度</div><div class="v" id="progV">0%</div></div>
+<div class="stat"><div class="k">准确率</div><div class="v" id="accV">100%</div></div>
+<div class="stat"><div class="k">用时</div><div class="v" id="timeV">00:00</div></div>
+</div>
+<div class="progress" style="margin-bottom:10px"><div class="bar" id="bar"></div></div>
+<div aria-label="练习输入区域" class="display" contenteditable="true" id="display" role="textbox"></div>
+<div class="mobilebar">
+<button id="bkBtn">退格</button>
+<button id="focusBtn">聚焦输入</button>
+<button class="ghost" id="clearInputBtn">清除输入</button>
+</div>
+<div style="margin-top:10px;color:#9aa3ad;font-size:13px">
+        说明：遮蔽模式下不显示原文。你敲的字符会显示出来；正确绿色，错误红底；忽略项（空格/标点）按设置处理并以灰色显示，不计错。
+      </div>
+</div>
+</section>
+</div>
+<script>
+(function(){
+  function safeConfirm(msg){ try{ return window.safeConfirm(msg); }catch(e){ return true; } }
+
+  const $ = s=>document.querySelector(s);
+  const pad2 = n=>String(n).padStart(2,'0');
+  const elapsedFmt = ms=>{const s=Math.floor(ms/1000),m=Math.floor(s/60),sec=s%60;return `${pad2(m)}:${pad2(sec)}`;};
+
+  function isPunctChar(ch){
+    try { return /[\p{P}\p{S}]/u.test(ch) || /[，。！？；：、“”‘’、（）《》【】—…·]/.test(ch); }
+    catch(e){ return /[!\"#$%&'()*+,\-./:;<=>?@[\\]^_`{|}~，。！？；：“”‘’、（）《》【】—…·]/.test(ch); }
+  }
+  function normalize(str,{ignoreSpace,ignorePunct,caseInsensitive}){
+    let s = str;
+    if(caseInsensitive) s = s.toLowerCase();
+    if(ignorePunct) s = Array.from(s).filter(c=>!isPunctChar(c)).join('');
+    if(ignoreSpace) s = s.replace(/\s+/g,'');
+    return s;
+  }
+  function isIgnorableChar(ch,opts){
+    if((/\s/.test(ch) || ch==='\u3000' || ch==='\u200B' || ch==='\u200C' || ch==='\u200D') && opts.ignoreSpace) return true;
+    if(isPunctChar(ch) && opts.ignorePunct) return true;
+    return false;
+  }
+  function normChar(ch, opts){
+  let c = ch;
+  try { c = c.normalize('NFKC'); } catch(_) {}
+  if(opts && opts.caseInsensitive && typeof c === 'string') {
+    try { c = c.toLowerCase(); } catch(_) {}
+  }
+  if (isIgnorableChar(c, opts)) return '';
+  return c;
+}
+
+  const state={
+    rawText:'', normText:'',
+    startedAt:0, pausedAt:0, runMs:0, done:false,
+    opts:{ignoreSpace:true,ignorePunct:true,caseInsensitive:true,hideText:true},
+    history:[], acceptedRaw:'',
+    timerId: null,
+    composing:false,
+    compBuf:''
+  };
+
+  const els={
+    title:$('#titleInput'), src:$('#sourceText'),
+    start:$('#startBtn'), pause:$('#pauseBtn'), restart:$('#restartBtn'),
+    display:$('#display'), progV:$('#progV'), accV:$('#accV'), timeV:$('#timeV'), bar:$('#bar'),
+    ignoreSpace:$('#ignoreSpace'), ignorePunct:$('#ignorePunct'), caseInsensitive:$('#caseInsensitive'),
+    hideText:$('#hideText'),
+    currentTag:$('#currentTag'),
+    matList:$('#materialList'), saveMatBtn:$('#saveMaterialBtn'),
+    exportBtn:$('#exportBtn'), importBtn:$('#importBtn'), importFile:$('#importFile'), saveAnchor:$('#saveAnchor'),
+    veil:$('#veil'),
+    clearSourceBtn:$('#clearSourceBtn'), clearInputBtn:$('#clearInputBtn')
+  };
+
+  // --- Materials ---
+  const KEY_MATS='typomem.materials';
+  function loadMats(){ try{return JSON.parse(localStorage.getItem(KEY_MATS)||'[]');}catch{return[];} }
+  function saveMats(m){ localStorage.setItem(KEY_MATS, JSON.stringify(m)); renderMatList(); }
+  function renderMatList(){
+    const mats=loadMats();
+    els.matList.innerHTML='';
+    mats.forEach((m,i)=>{
+      const li=document.createElement('div'); li.className='list-item';
+      const left=document.createElement('div'); left.className='name'; left.textContent=m.title||`未命名-${i+1}`;
+      const right=document.createElement('div'); right.className='row';
+      const loadBtn=document.createElement('button'); loadBtn.textContent='载入';
+      const delBtn=document.createElement('button'); delBtn.textContent='删除'; delBtn.className='ghost';
+      loadBtn.onclick=()=>{ els.title.value=m.title||''; els.src.value=m.text||''; els.currentTag.textContent=`当前：${m.title||'未命名'}`; };
+      delBtn.onclick=()=>{ const next=mats.slice(0,i).concat(mats.slice(i+1)); saveMats(next); };
+      right.append(loadBtn,delBtn); li.append(left,right); els.matList.append(li);
+    });
+  }
+  renderMatList();
+  els.saveMatBtn.onclick=()=>{
+    const title=(els.title.value||'').trim() || `未命名-${new Date().toLocaleString()}`;
+    const text=els.src.value||'';
+    if(!text){ alert('没有文本'); return; }
+    const mats=loadMats(); mats.unshift({title,text}); saveMats(mats);
+    els.currentTag.textContent = `当前：${title}`;
+  };
+  els.exportBtn.onclick = () => {
+  const mats = loadMats();
+  const toSafe = s => (s || '').replace(/\r\n/g, '\n');
+  const blocks = mats.map(m => {
+    const title = toSafe(m.title || '');
+    const text  = toSafe(m.text  || '');
+    return [
+      '----- TypoMem Item -----',
+      'Title: ' + title,
+      text,
+      '----- End Item -----'
+    ].join('\n');
+  });
+  const out = '\ufeff' + blocks.join('\n\n');
+  const blob = new Blob([out], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  els.saveAnchor.href = url; els.saveAnchor.download = 'typomem_materials.txt'; els.saveAnchor.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+};
+  els.importBtn.onclick=()=>els.importFile.click();
+  els.importFile.onchange = e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const content = String(reader.result || '');
+    try {
+      let imported = [];
+
+      // 优先尝试 JSON 解析；失败再 TXT
+      let parsed = null;
+      try { parsed = JSON.parse(content); } catch(_) {}
+
+      if (parsed) {
+        const arr = Array.isArray(parsed) ? parsed
+                  : (Array.isArray(parsed.materials) ? parsed.materials : null);
+        if (!arr) throw new Error('JSON 结构无法识别（需要数组或 {materials: []}）');
+        for (const it of arr) {
+          if (!it || typeof it !== 'object') continue;
+          const title = (it.title || it.name || it.header || '').toString();
+          const text  = (it.text  || it.content || it.body || it.value || '').toString();
+          if (title || text) imported.push({ title, text });
+        }
+        if (imported.length === 0) throw new Error('JSON 中没有可导入的条目');
+      } else {
+        const parts = content.split(/^\s*-{5}\s*End Item\s*-{5}\s*$/m);
+        const chunks = (parts.length > 1) ? parts : [content];
+        for (let raw of chunks) {
+          if (!raw || !raw.trim()) continue;
+          let chunk = raw.replace(/^\s*-{5}.*?Item.*?-{5}\s*/i, '');
+          const mTitle = chunk.match(/^(?:Title|标题|標題)\s*:\s*(.*)$/im);
+          let title = '', body = '';
+          if (mTitle) {
+            title = (mTitle[1] || '').trim();
+            body  = chunk.replace(mTitle[0], '').trim();
+          } else {
+            const lines = chunk.split(/\r?\n/);
+            const i = lines.findIndex(l => l.trim() !== '');
+            if (i >= 0) { title = lines[i].trim(); body = lines.slice(i+1).join('\n').trim(); }
+          }
+          if (title || body) imported.push({ title, text: body });
+        }
+        if (imported.length === 0) throw new Error('TXT 中没有可导入的条目');
+      }
+
+      const exist = loadMats();
+      saveMats(imported.concat(exist));
+      alert('已导入 ' + imported.length + ' 条素材');
+    } catch (err) {
+      alert('导入失败：' + (err && err.message ? err.message : '未知错误'));
+    } finally {
+      e.target.value = '';
+    }
+  };
+  reader.readAsText(f, 'utf-8');
+};
+
+  // --- Session ---
+  function resetSession(){
+    state.history=[]; state.acceptedRaw=''; state.done=false; state.startedAt=0; state.pausedAt=0; state.runMs=0;
+    stopTimer(); updateStats(); renderDisplay();
+  }
+  function syncOptsFromUI(){
+    state.opts={
+      ignoreSpace:els.ignoreSpace.checked, ignorePunct:els.ignorePunct.checked, caseInsensitive:els.caseInsensitive.checked,
+      hideText:els.hideText.checked
+    };
+  }
+  function prepare(){
+    syncOptsFromUI();
+    state.rawText=els.src.value||'';
+    state.normText=normalize(state.rawText,state.opts);
+    if(!state.rawText.trim()){ alert('请先在左侧粘贴或载入课文'); return false; }
+    if(!state.normText.length){ alert('文本在当前过滤设置下为空（全被忽略）。请修改选项。'); return false; }
+    resetSession();
+    return true;
+  }
+
+  function startTimer(){
+    if(state.timerId) return;
+    state.timerId = setInterval(updateStats, 500);
+  }
+  function stopTimer(){
+    if(state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+  }
+
+  function startOrResume(){
+    if(!state.startedAt || (state.startedAt && state.pausedAt)){
+      if(!state.startedAt){
+        if(!prepare()) return;
+        state.startedAt = Date.now();
+      }else{
+        state.runMs += Date.now() - state.pausedAt;
+        state.pausedAt = 0;
+      }
+      els.start.textContent='继续';
+      els.start.disabled=true; els.pause.disabled=false; els.restart.disabled=false;
+      els.src.classList.add('hidden'); els.veil.classList.add('show');
+      els.display.focus(); renderDisplay();
+      startTimer();
+    }
+  }
+  function pause(){
+    if(!state.startedAt) return;
+    if(!state.pausedAt){ state.pausedAt=Date.now(); }
+    els.start.disabled=false; els.pause.disabled=true;
+    els.src.classList.remove('hidden'); els.veil.classList.remove('show');
+    stopTimer();
+    updateStats();
+  }
+
+  function currentAcceptedNorm(){
+    return normalize(state.acceptedRaw, state.opts);
+  }
+
+  function handleInputChar(ch){
+  if(state.done) return;
+  if(!state.startedAt || state.pausedAt) return;
+
+  if(ch === 'BACKSPACE'){
+    if(state.history.length > 0){
+      const last = state.history.pop();
+      // 只有非忽略字符才影响 acceptedRaw
+      if(last.accepted && !last.ignorable){
+        state.acceptedRaw = state.acceptedRaw.slice(0, -1);
+      }
+    }
+    renderDisplay(); updateStats(); return;
+  }
+
+  // 【关键修复】：用户输入的标点一律忽略（灰色显示，不参与比对）
+  if(state.opts.ignorePunct && isIgnorableChar(ch, state.opts)){
+    state.history.push({ch, accepted: true, ignorable: true});
+    renderDisplay(); updateStats();
+    return;
+  }
+
+  // 只有非忽略字符才参与比对
+  const nextIndex = currentAcceptedNorm().length;
+  if(nextIndex >= state.normText.length){
+    state.done = true;
+    pause();
+    return;
+  }
+
+  const needed = state.normText[nextIndex];
+  const got = normChar(ch, state.opts);
+  const ok = got === needed;
+
+  state.history.push({ch, accepted: ok, ignorable: false});
+  if(ok){
+    state.acceptedRaw += ch;
+  }
+
+  renderDisplay(); updateStats();
+
+  if(currentAcceptedNorm().length >= state.normText.length){
+    state.done = true;
+    pause();
+  }
+}
+
+  // --- Render ---
+  function renderDisplay(){
+    const frag = document.createDocumentFragment();
+    const caret = document.createElement('span'); caret.className='caret'; caret.innerHTML='&nbsp;';
+    state.history.forEach(item=>{
+      const s=document.createElement('span');
+      s.textContent=item.ch;
+      if(item.ignorable){ s.className='ghostText'; }
+      else if(item.accepted){ s.className='typed ok'; }
+      else { s.className='typed bad'; }
+      frag.appendChild(s);
+    });
+    frag.appendChild(caret);
+    els.display.innerHTML='';
+    els.display.appendChild(frag);
+  }
+
+  function updateStats(){
+    const now=Date.now();
+    const elapsedActive = state.startedAt ? (state.pausedAt ? (state.runMs + (state.pausedAt - state.startedAt))
+                                                           : (state.runMs + (now - state.startedAt))) : 0;
+    els.timeV.textContent = elapsedFmt(elapsedActive);
+    const progress = state.normText ? Math.min(100, Math.round(100*currentAcceptedNorm().length/state.normText.length)) : 0;
+    els.progV.textContent = progress + '%'; els.bar.style.width = progress + '%';
+    const total = state.history.filter(x=>!x.ignorable).length;
+    const errors = state.history.filter(x=>!x.ignorable && !x.accepted).length;
+    const acc = total>0 ? Math.max(0, Math.round(100*(total - errors)/Math.max(1,total))) : 100;
+    els.accV.textContent = acc + '%';
+  }
+
+  // --- iPad input hooks ---
+  els.display.addEventListener('beforeinput',(e)=>{
+    if (state.composing) { e.preventDefault(); return; }
+    if(e.inputType==='insertText' && e.data){ e.preventDefault(); for(const ch of Array.from(e.data)){ handleInputChar(ch); } }
+    else if(e.inputType==='deleteContentBackward'){ e.preventDefault(); handleInputChar('BACKSPACE'); }
+    else if(e.inputType==='insertParagraph'){ e.preventDefault(); handleInputChar('\n'); }
+  });
+  els.display.addEventListener('paste', (e)=>{ e.preventDefault(); const t=(e.clipboardData&&e.clipboardData.getData('text/plain'))||''; for(const ch of Array.from(t)){ handleInputChar(ch); } });
+  els.display.addEventListener('compositionstart', (e)=>{ state.composing=true; state.compBuf=''; });
+els.display.addEventListener('compositionupdate', (e)=>{ state.composing=true; state.compBuf = e.data || state.compBuf; });
+els.display.addEventListener('compositionend', (e)=>{ const t = (e && e.data) || state.compBuf || ''; state.composing=false; state.compBuf=''; for(const ch of Array.from(t)){ handleInputChar(ch); } renderDisplay(); updateStats(); });
+document.addEventListener('keydown', (e)=>{
+    if (e.isComposing) return;
+    if(e.key==='Enter'){
+      e.preventDefault();
+      if(document.activeElement===els.display && state.startedAt && !state.pausedAt){ handleInputChar('\n'); }
+      else { startOrResume(); }
+      return;
+    }
+    if(e.key==='Escape'){ e.preventDefault(); pause(); return; }
+    if(document.activeElement===els.display && e.key==='Backspace'){ e.preventDefault(); handleInputChar('BACKSPACE'); return; }
+    
+  });
+
+  // --- UI bindings ---
+  $('#focusBtn').onclick=()=>els.display.focus();
+  $('#bkBtn').onclick=()=>handleInputChar('BACKSPACE');
+  els.start.onclick=startOrResume; els.pause.onclick=pause;
+  els.restart.onclick=()=>{ if(state.rawText){ resetSession(); els.start.disabled=false; els.pause.disabled=true; els.src.classList.remove('hidden'); els.veil.classList.remove('show'); els.start.textContent='开始'; } };
+
+  // --- 清除按钮 ---
+  els.clearSourceBtn.onclick = () => {
+    if (!safeConfirm('确定要清空标题和原文吗？（不会删除已保存的素材）')) return;
+    els.title.value = '';
+    els.src.value   = '';
+    els.currentTag.textContent = '';
+    if (state.startedAt) {
+      resetSession();
+      els.start.disabled = false; els.pause.disabled = true; els.restart.disabled = true;
+      els.start.textContent = '开始';
+      els.src.classList.remove('hidden'); els.veil.classList.remove('show');
+    }
+  };
+
+  els.clearInputBtn.onclick = () => {
+    if (!safeConfirm('确定要清除当前练习进度吗？（不会删除已保存的素材）')) return;
+    resetSession();
+    els.start.disabled = false; els.pause.disabled = true; els.restart.disabled = true;
+    els.start.textContent = '开始';
+    els.src.classList.remove('hidden'); els.veil.classList.remove('show');
+  };
+
+  // 选项变化
+  [els.hideText,els.ignoreSpace,els.ignorePunct,els.caseInsensitive].forEach(el=>{
+    el.addEventListener('change', ()=>{ syncOptsFromUI(); renderDisplay(); updateStats(); });
+  });
+
+  renderDisplay(); updateStats();
+})();
+</script>
+<hr/>
+<hr/>
+<hr/>
+
+<hr/>
+
+
+<hr style="border: 1px solid rgba(255,255,255,0.2);"/>
+<div id="user-guide" style="text-align:center; max-width:700px; margin:40px auto; line-height:1.8; font-family: system-ui, sans-serif; color:#ddd;">
+<h2 style="color:#fff;">📘 使用说明</h2>
+<p>TypoMem·默背 是一个辅助默背课文的小工具。<br/>
+  你可以录入自己的学习素材，系统会帮你检测输入是否正确，并记录时间。</p>
+<h3 style="color:#fff;">🧾 功能介绍</h3>
+<ol style="text-align:left; display:inline-block; margin:0 auto; text-align: left;">
+<li>录入素材：在“素材原文”区域粘贴课文或段落内容。</li>
+<li>设置标题并保存：为素材添加标题并点击“保存素材”，下次可直接加载使用。</li>
+<li>加载素材：从保存的素材列表中选择一篇开始默背。</li>
+<li>开始默背：点击“开始”后原文隐藏，计时器启动。</li>
+<li>输入检测：在输入区输入内容，错误部分会以红色标出。</li>
+<li>暂停 / 继续：点击“暂停”可暂时停止计时，再次点击“继续”恢复。</li>
+<li>一键清除：可清空当前原文或输入内容，不会清除已保存的素材库。</li>
+</ol>
+<h3 style="color:#fff;">💾 数据说明</h3>
+<p>你的素材保存在浏览器本地（LocalStorage），不会上传或被他人访问。<br/>
+  若清除浏览器缓存或换设备，保存的素材会丢失。</p>
+</div>
+<hr style="border: 1px solid rgba(255,255,255,0.2);"/>
+<p style="text-align:center; margin-top: 20px; color:#eee;">Credits: Albas, ChatGPT</p>
+</body>
+</html>
